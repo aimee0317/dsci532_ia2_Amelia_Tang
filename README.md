@@ -1,1 +1,1 @@
-# Video Game Sales Dashboard - Sales Chart Component
+# sales_chart

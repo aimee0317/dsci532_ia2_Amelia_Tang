@@ -1,54 +1,87 @@
 library(dash)
 library(dashCoreComponents)
 library(dashHtmlComponents)
-library(dashBootstrapComponents)
-library(ggplot2)
 library(plotly)
+library(tidyverse)
 
 app <- Dash$new(external_stylesheets = dbcThemes$BOOTSTRAP)
 
-msleep2 <- readr::read_csv(here::here('data', 'msleep.csv'))
+
+## Load and wrangle the data 
+
+xbox <- read.csv("data/xbox.csv") |> drop_na()
+ps4 <- read.csv("data/ps4.csv") |> drop_na()
+
+xbox_NA <- xbox  %>%
+  select(Year, North.America)  %>%
+  group_by(Year)  %>%
+  summarise(NA_sales = sum(North.America))  %>%
+  slice(1:6)
+
+ps4_NA <- ps4  %>%
+  select(Year, North.America)  %>%
+  group_by(Year)  %>%
+  summarise(NA_sales = sum(North.America))  %>%
+  slice(1:6)
+
+
+year_range <- seq(min(ps4_NA$Year), max(ps4_NA$Year))
+year_range_label <- setNames(as.list(as.character(year_range)), as.integer(year_range))
+
 
 app$layout(
-    dbcContainer(
-        list(
-            htmlH1('Dashr heroky deployment'),
-            dccGraph(id='plot-area'),
-            htmlDiv(id='output-area'),
-            htmlBr(),
-            htmlDiv(id='output-area2'),
-            htmlBr(),
-            dccDropdown(
-                id='col-select',
-                options = msleep2 %>% colnames %>% purrr::map(function(col) list(label = col, value = col)),
-                value='bodywt')
+  dbcContainer(
+    list(
+      htmlBr(),
+      dccGraph(id='sales_plot'),
+      dccSlider(
+        id="slider-year",
+        min=min(xbox_NA$Year),
+        max=max(xbox_NA$Year),
+        step=1,
+        value=max(xbox_NA$Year),
+        marks=year_range_label,
+        tooltip=list(
+          always_visible=TRUE,
+          placement="top"
         )
+      ),
+      htmlBr(),
+      htmlP("Company Name for Sales Trend plot"),
+      dccDropdown(
+        id='company-select',
+        options = list('ps4', 'xbox', "ps4 + xbox"), 
+        value='ps4')
     )
+  )
 )
 
 app$callback(
-    output('plot-area', 'figure'),
-    list(input('col-select', 'value')),
-    function(xcol) {
-        p <- ggplot(msleep2) +
-            aes(x = !!sym(xcol),
-                y = sleep_total,
-                color = vore,
-                text = name) +
-            geom_point() +
-            scale_x_log10() +
-            ggthemes::scale_color_tableau()
-        ggplotly(p) %>% layout(dragmode = 'select')
-    }
-)
-
-app$callback(
-    list(output('output-area', 'children'),
-         output('output-area2', 'children')),
-    list(input('plot-area', 'selectedData'),
-         input('plot-area', 'hoverData')),
-    function(selected_data, hover_data) {
-        list(toString(selected_data), toString(hover_data))
+    output('sales_plot', 'figure'),
+    list(input('company-select', 'value'),
+         input("slider-year", "value")),
+    function(company, year) {
+      if (company == 'ps4') {
+        ps4_NA_yr <- ps4_NA  %>%
+          filter(Year <= year)  %>%
+            rename(Sales = NA_sales)
+        p <- plot_ly(ps4_NA_yr, x = ~Year, y = ~Sales, type = 'scatter', mode = 'lines')  %>%
+         layout(title =('Sales Trend'))
+      } else if (company == 'xbox'){
+        xbox_NA_yr <- xbox_NA  %>%
+          filter(Year <= year)  %>%
+            rename(Sales = NA_sales)
+        p <- plot_ly(xbox_NA_yr, x = ~Year, y = ~Sales, type = 'scatter', mode = 'lines')  %>%
+            layout(title =('Sales Trend'))
+      } else { 
+         NA_sales_plot <- merge(ps4_NA, xbox_NA, by = 'Year') %>%
+             rename(Sales = NA_sales.x)  %>%
+             filter(Year <= year)
+         p <- plot_ly(NA_sales_plot, x = ~Year, y = ~Sales, name = "PlayStation4", type = 'scatter', mode = 'lines') 
+         p <- p  %>% add_trace(y = ~NA_sales.y, name = 'XBox', mode = 'lines')  %>%
+             layout(title =('Sales Trend'))
+      }
+      ggplotly(p)
     }
 )
 
