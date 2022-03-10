@@ -9,8 +9,8 @@ app <- Dash$new(external_stylesheets = dbcThemes$BOOTSTRAP)
 
 ## Load and wrangle the data 
 
-xbox <- read.csv("data/xbox.csv") |> drop_na()
-ps4 <- read.csv("data/ps4.csv") |> drop_na()
+xbox <- read.csv("data/xbox.csv") %>% drop_na()
+ps4 <- read.csv("data/ps4.csv") %>% drop_na()
 
 xbox_NA <- xbox  %>%
   select(Year, North.America)  %>%
